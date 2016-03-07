@@ -29,11 +29,9 @@ struct flow {
 
   // determines flow equality
   bool operator==(const flow& f) {
-    return (protocol == f.protocol &&
-            srcAddr == f.srcAddr &&
-            dstAddr == f.dstAddr &&
-            srcPort == f.srcPort &&
-            dstPort == f.dstPort);
+    return ((protocol == f.protocol) &&
+            ((srcAddr == f.srcAddr && srcPort = f.srcPort && dstAddr == f.dstAddr && dstPort = f.dstPort) ||
+             (srcAddr == f.dstAddr && srcPort = f.dstPort && dstAddr == f.srcAddr && dstPort = f.srcPort))
   }
 };
   

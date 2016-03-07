@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
   std::string interface;
   std::string time;
   std::string time_offset;
-  int num; // number of flows to print
+  int num = 0; // number of flows to print, default 0 means print all flows
   int timeout_interval = 60;
 
   std::vector<flow> flows;
