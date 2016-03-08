@@ -1,1 +1,9 @@
-README
+Generate same output using argus:
+$ argus -r opensafety_udp_trace.pcap -w output.argus
+$ ra -r output.argus -s stime proto saddr sport dir daddr dport pkts bytes state dur
+
+Website resources:
+http://nsmwiki.org/Argus
+http://www.nthelp.com/icmp.html
+http://linux.die.net/man/3/timersub
+http://www.tcpdump.org/pcap.html
