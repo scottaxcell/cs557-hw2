@@ -8,14 +8,17 @@
 static std::map<size_t, std::vector<Flow>> finishedFlows;
 static std::vector<Flow> flows;
 static int num = 0; // number of flows to print, default 0 means print all flows
-static unsigned long timeout_interval = 60;
-static unsigned long time_offset = 0;
-static unsigned long runtime = 0;
-static unsigned long first_timestamp = 0;
-static unsigned long start_time = 0;
-static unsigned long max_runtime = 0;
-static int user_specified_time = 0;
+static unsigned long timeout_interval = 60; // flow interval
+static unsigned long time_offset = 0; // time to wait to start capturing fata
+static unsigned long runtime = 0; // total time to run for specified by user
+static unsigned long first_timestamp = 0; // fist timestamp in capture
+static unsigned long start_time = 0; // time to start capture based on runtime, offset, etc.
+static unsigned long max_runtime = 0; // maximum runtime for capture based on offset, runtime, etc.
+static int user_specified_time = 0; // did the use specify a runtime
 
+//
+// Format string for a nice output
+//
 std::string padString(std::string input, int size)
 {
   std::string str(input);
@@ -25,6 +28,9 @@ std::string padString(std::string input, int size)
   return str;
 }
 
+//
+// Print output header
+//
 void printHeader()
 {
   std::cout << padString("StartTime", 16)
@@ -40,6 +46,9 @@ void printHeader()
   << "Dur\n";
 }
 
+//
+// Move remainging flows to finishedFlows and print output
+//
 void cleanupAndPrint()
 {
   for (auto &flow : flows) {
@@ -68,12 +77,18 @@ void cleanupAndPrint()
   }
 }
 
+//
+// Print usage
+//
 void usage()
 {
   std::cout << "Usage: ./fsniffer [-r filename] [-i interface] [-t time] [-o time_offset] [-N num] [-S secs]" << std::endl;
   exit(0);
 }
 
+//
+// Parses the pcap packet and updates the flows datastructure
+//
 void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *packet)
 {
   /* packet headers */
@@ -155,6 +170,7 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
       flow.dstPort = 0;
       break;
     default:
+      // ignore anything that doesn't have IP
       return;
   }
 
@@ -348,6 +364,9 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
   }
 }
 
+//
+// Main
+//
 int main(int argc, char* argv[])
 {
   std::string filename;
@@ -411,17 +430,6 @@ int main(int argc, char* argv[])
   }
 
   cleanupAndPrint();
-  //printHeader();
-  //if (num == 0) {
-  //  for (auto &flow : flows) {
-  //    flow.print();
-  //  }
-  //} else {
-  //  for (int i = 0; i < num; ++i) {
-  //    flows[i].print();
-  //  }
-  //}
-
 
   return 0;
 }

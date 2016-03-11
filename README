@@ -1,9 +1,42 @@
-Generate same output using argus:
+=================
+Program: fsniffer 
+=================
+* A simple flow sniffer roughly modeled after the argus tool.
+
+
+======
+Usage:
+======
+$ ./fsniffer [-r filename] [-i interface] [-t time] [-o time_offset] [-N num] [-S secs]
+
+
+======================================
+Generate same output using argus tool:
+======================================
 $ argus -r opensafety_udp_trace.pcap -w output.argus
 $ ra -r output.argus -s stime proto saddr sport dir daddr dport pkts bytes state dur
 
+
+==================
 Website resources:
+==================
 http://nsmwiki.org/Argus
 http://www.nthelp.com/icmp.html
 http://linux.die.net/man/3/timersub
 http://www.tcpdump.org/pcap.html
+
+
+======
+Notes:
+======
+* I have corrected my misunderstaning of the time_offset and have implemented
+  it correctly this time around.
+* When I compare the output of fsniffer to argus output I can tell that fsniffer
+  is working as expected. The output is not identical because it looks like
+  argus is using different mechanism for diviing up flows. Other than this 
+  discrepancy, it is still possible to verify that the captured information is
+  the same just the output is slightly different and requires some work to verify.
+* Overall, it appears the fsniffer program is working as expected.
+
+3-11-2016
+Scott Axcell
