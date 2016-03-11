@@ -143,10 +143,10 @@ public:
     //std::cout << startTime.tv_sec << "." << startTime.tv_usec << " "
     std::cout << padString(humanTime, 16)
     << padString(protocol, 6)
-    << padString(srcAddr, 15)
+    << padString(srcAddr, 16)
     << padString(std::to_string(srcPort), 6)
     << padString(dir, 4)
-    << padString(dstAddr, 15)
+    << padString(dstAddr, 16)
     << padString(std::to_string(dstPort), 6)
     << padString(std::to_string(totalPkts), 10)
     << padString(std::to_string(totalBytes), 10)

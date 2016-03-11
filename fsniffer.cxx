@@ -4,7 +4,16 @@
 
 #include "fsniffer.h"
 
+static std::vector<Flow> finishedFlows;
 static std::vector<Flow> flows;
+static int num = 0; // number of flows to print, default 0 means print all flows
+static unsigned long timeout_interval = 60;
+static unsigned long time_offset = 0;
+static unsigned long runtime = 0;
+static unsigned long first_timestamp = 0;
+static unsigned long start_time = 0;
+static unsigned long max_runtime = 0;
+static int user_specified_time = 0;
 
 std::string padString(std::string input, int size)
 {
@@ -19,10 +28,10 @@ void printHeader()
 {
   std::cout << padString("StartTime", 16)
   << padString("Proto", 6)
-  << padString("SrcAddr", 15)
+  << padString("SrcAddr", 16)
   << padString("Sport", 6)
   << padString("Dir", 4)
-  << padString("DstAddr", 15)
+  << padString("DstAddr", 16)
   << padString("Dport", 6)
   << padString("TotPkts", 10)
   << padString("TotBytes", 10)
@@ -44,11 +53,45 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
   const struct sniff_tcp *tcp;            /* The TCP header */
   const struct sniff_udp *udp;            /* The UDP header */
   const struct icmp *icmp;                /* The ICMP header */
-  int size_ip;
-  int size_tcp;
+  int size_ip = 0;
+  int size_tcp = 0;
 
+  //
   // TODO handle timer
+  //
+  if (first_timestamp == 0) {
+    // Initialize the timer
+    first_timestamp = (u_long)pkthdr->ts.tv_sec;
+    if (time_offset != 0)
+      start_time = first_timestamp + time_offset;
+    else
+      start_time = first_timestamp;
+    max_runtime = start_time + runtime;
+    /*DEBUG*/fprintf(stdout, "Initialized first_timestamp =  %lu\n", first_timestamp);
+    /*DEBUG*/fprintf(stdout, "Initialized max_runtime =      %lu\n", max_runtime);
+    /*DEBUG*/fprintf(stdout, "Initialized start_time =       %lu\n", start_time);
+  }
 
+  // Check we're doing ok on time
+  u_long curr_time = (u_long)pkthdr->ts.tv_sec;
+  if (curr_time < start_time) {
+    return;
+  }
+  if (user_specified_time == 1 && (curr_time > max_runtime)) {
+    fprintf(stdout, "\nRuntime limit of %lu seconds reached, exiting..\n", runtime);
+    // TODO call printer function and exit
+    printHeader();
+    if (num == 0) {
+      for (auto &flow : flows) {
+        flow.print();
+      }
+    } else {
+      for (int i = 0; i < num; ++i) {
+        flows[i].print();
+      }
+    }
+    exit(0);
+  }
 
   /* define ethernet header */
   ethernet = (struct sniff_ethernet*)(packet);
@@ -79,23 +122,6 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
       flow.srcPort = ntohs(tcp->th_sport);
       flow.dstPort = ntohs(tcp->th_dport);
 
-      //u_char flags;
-      //if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
-      //  fprintf(stdout,"[ ");
-      //  if (flags & TH_FIN)
-      //    fprintf(stdout,"FIN ");
-      //  if (flags & TH_SYN)
-      //    fprintf(stdout,"SYN ");
-      //  if (flags & TH_RST)
-      //    fprintf(stdout,"RST ");
-      //  if (flags & TH_PUSH)
-      //    fprintf(stdout,"PSH ");
-      //  if (flags & TH_ACK)
-      //    fprintf(stdout,"ACK ");
-      //  if (flags & TH_URG)
-      //    fprintf(stdout,"URG ");
-      //  fprintf(stdout,"] ");
-      //}
       break;
     case IPPROTO_UDP:
       udp = (struct sniff_udp*)(packet + SIZE_ETHERNET + size_ip);
@@ -106,9 +132,8 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
     case IPPROTO_ICMP:
       icmp = (struct icmp*)(packet + SIZE_ETHERNET + size_ip);
       flow.protocol = "ICMP";
-      break;
-    case IPPROTO_IP:
-      printf("IP ");
+      flow.srcPort = 0;
+      flow.dstPort = 0;
       break;
     default:
       return;
@@ -116,53 +141,174 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
 
   auto flowItr = std::find_if(flows.begin(), flows.end(), flow);
   if (flowItr != flows.end()) {
+    //
     // have an existing flow
+    //
     auto &f = *flowItr;
 
+    //
     // increment packet counter
+    //
     (f.totalPkts)++;
 
+    //
     // increment total bytes
+    //
     f.totalBytes += pkthdr->len;
 
+    //
     // udpate duration
+    //
+    // TODO verify this is working, seems off
     struct timeval currentTimestamp;
     currentTimestamp.tv_sec = pkthdr->ts.tv_sec;
     currentTimestamp.tv_usec = pkthdr->ts.tv_usec;
     timersub(&currentTimestamp, &f.startTime, &f.dur);
 
+    //
     // update direction
-    if (flow.protocol == "UDP" && f.isOppositeDirection(flow)) {
-      flow.dir = "<->";
-    } else if (flow.protocol == "TCP" && f.isOppositeDirection(flow)) {
-      flow.dir = "<->";
+    //
+    if (f.protocol == "ICMP" && f.isOppositeDirection(flow)) {
+      f.dir = "<->";
+    } else if (f.protocol == "UDP" && f.isOppositeDirection(flow)) {
+      f.dir = "<->";
+    } else if (f.protocol == "TCP") {
+      u_char flags;
+      int size_payload = ntohs(ip->ip_len) - (size_ip + size_tcp);
+      if (size_payload > 0) {
+        if (f.dir == "<-")
+          f.dir = "<->";
+        else if (flow.dir == "")
+          f.dir = "->";
+      } else if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
+        if (flags & TH_SYN) {
+          if (f.dir == "<-")
+            f.dir = "<->";
+          else if (f.dir == "")
+            f.dir = "->";
+        } else if (flags & TH_SYN && flags & TH_ACK) {
+          if (f.dir == "->")
+            f.dir = "<->";
+          else if (f.dir == "")
+            f.dir = "<-";
+        }
+      }
+    }
+
+    //
+    // update the state
+    //
+    if (f.protocol == "ICMP") {
+      icmp = (struct icmp*)(packet + SIZE_ETHERNET + size_ip);
+      f.state = std::to_string(icmp->icmp_type);
+    } else if (f.protocol == "UDP") {
+      // leave blank intentionally
+    } else if (f.protocol == "TCP") {
+      u_char flags;
+      int size_payload = ntohs(ip->ip_len) - (size_ip + size_tcp);
+      if (size_payload > 0)
+        f.state = "EST";
+      else if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
+        if (flags & TH_FIN)
+          f.state = "FIN";
+        else if (flags & TH_SYN)
+          f.state = "SYN";
+        else if (flags & TH_RST)
+          f.state = "RST";
+        else if (flags & TH_PUSH && f.state != "EST")
+          f.state = "PSH";
+        else if (flags & TH_SYN && flags & TH_ACK)
+          f.state = "SYNACK";
+        else if (flags & TH_URG)
+          f.state = "URG";
+      }
     }
   } else {
+    //
     // brand new flow
+    //
 
+    //
     // set start time to current timestamp
+    //
     struct timeval startTime;
     startTime.tv_sec = pkthdr->ts.tv_sec;
     startTime.tv_usec = pkthdr->ts.tv_usec;
     flow.startTime = startTime;
 
+    //
     // initialize duration time
+    //
     struct timeval dur;
     dur.tv_sec = 0;
     dur.tv_usec = 0;
     flow.dur = dur;
 
+    //
     // initialize direction
-    flow.dir = "->";
+    //
+    if (flow.protocol == "UDP") {
+      int size_payload = ntohs(ip->ip_len) - (size_ip + SIZE_UDP);
+      if (size_payload > 0)
+        flow.dir = "->";
+      else
+        flow.dir = "<-";
+    } else if (flow.protocol == "TCP") {
+      u_char flags;
+      int size_payload = ntohs(ip->ip_len) - (size_ip + size_tcp);
+      if (size_payload > 0)
+        flow.dir = "->";
+      else if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
+        if (flags & TH_FIN)
+          flow.dir = "<-";
+        else if (flags & TH_SYN)
+          flow.dir = "->";
+        else if (flags & TH_SYN && flags & TH_ACK)
+          flow.dir = "<-";
+      }
+    } else if (flow.protocol == "ICMP") {
+      flow.dir = "->";
+    }
 
+    //
     // initialize packet counter
+    //
     flow.totalPkts = 1;
 
+    //
     // initialize total bytes
+    //
     flow.totalBytes = pkthdr->len;
 
+    //
     // initialize the state
-    flow.state = "BOB";
+    //
+    if (flow.protocol == "ICMP") {
+      icmp = (struct icmp*)(packet + SIZE_ETHERNET + size_ip);
+      flow.state = std::to_string(icmp->icmp_type);
+    }
+    else if (flow.protocol == "UDP") {
+      flow.state = "";
+    }
+    else if (flow.protocol == "TCP") {
+      u_char flags;
+      if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
+        if (flags & TH_FIN)
+          flow.state = "FIN";
+        else if (flags & TH_SYN)
+          flow.state = "SYN";
+        else if (flags & TH_RST)
+          flow.state = "RST";
+        else if (flags & TH_PUSH)
+          flow.state = "PSH";
+        else if (flags & TH_SYN && flags & TH_ACK)
+          flow.state = "SYNACK";
+        else if (flags & TH_URG)
+          flow.state = "URG";
+      } else {
+        flow.state = "";
+      }
+    }
 
     flows.push_back(flow);
   }
@@ -172,10 +318,6 @@ int main(int argc, char* argv[])
 {
   std::string filename;
   std::string interface;
-  std::string time;
-  std::string time_offset;
-  int num = 0; // number of flows to print, default 0 means print all flows
-  int timeout_interval = 60;
 
   if (argc == 1) {
     usage();
@@ -188,9 +330,10 @@ int main(int argc, char* argv[])
     } else if (strcmp(argv[i], "-i") == 0) {
       interface = argv[++i];
     } else if (strcmp(argv[i], "-t") == 0) {
-      time = argv[++i];
+      user_specified_time = 1;
+      runtime = std::stoi(argv[++i]);
     } else if (strcmp(argv[i], "-o") == 0) {
-      time_offset = argv[++i];
+      time_offset = std::stoi(argv[++i]);
     } else if (strcmp(argv[i], "-N") == 0) {
       num = std::stoi(argv[++i]);
     } else if (strcmp(argv[i], "-S") == 0) {
@@ -234,8 +377,14 @@ int main(int argc, char* argv[])
   }
 
   printHeader();
-  for (auto &flow : flows) {
-    flow.print();
+  if (num == 0) {
+    for (auto &flow : flows) {
+      flow.print();
+    }
+  } else {
+    for (int i = 0; i < num; ++i) {
+      flows[i].print();
+    }
   }
 
 
