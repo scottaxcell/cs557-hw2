@@ -1,10 +1,11 @@
 #include <iostream>
 #include <vector>
+#include <map>
 #include <algorithm>
 
 #include "fsniffer.h"
 
-static std::vector<Flow> finishedFlows;
+static std::map<size_t, std::vector<Flow>> finishedFlows;
 static std::vector<Flow> flows;
 static int num = 0; // number of flows to print, default 0 means print all flows
 static unsigned long timeout_interval = 60;
@@ -39,6 +40,34 @@ void printHeader()
   << "Dur\n";
 }
 
+void cleanupAndPrint()
+{
+  for (auto &flow : flows) {
+    size_t hashValue = flow.hashValue();
+    finishedFlows[hashValue].push_back(flow);
+  }
+  printHeader();
+  if (num == 0) {
+    for (auto &kvp : finishedFlows) {
+      for (auto &flow : kvp.second) {
+        flow.print();
+      }
+    }
+  } else {
+    int i = 0;
+    for (auto &kvp : finishedFlows) {
+      for (auto &flow : kvp.second) {
+        if (i < num) {
+          flow.print();
+          i++;
+        } else {
+          return;
+        }
+      }
+    }
+  }
+}
+
 void usage()
 {
   std::cout << "Usage: ./fsniffer [-r filename] [-i interface] [-t time] [-o time_offset] [-N num] [-S secs]" << std::endl;
@@ -57,7 +86,7 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
   int size_tcp = 0;
 
   //
-  // TODO handle timer
+  // handle timer
   //
   if (first_timestamp == 0) {
     // Initialize the timer
@@ -79,17 +108,7 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
   }
   if (user_specified_time == 1 && (curr_time > max_runtime)) {
     fprintf(stdout, "\nRuntime limit of %lu seconds reached, exiting..\n", runtime);
-    // TODO call printer function and exit
-    printHeader();
-    if (num == 0) {
-      for (auto &flow : flows) {
-        flow.print();
-      }
-    } else {
-      for (int i = 0; i < num; ++i) {
-        flows[i].print();
-      }
-    }
+    cleanupAndPrint();
     exit(0);
   }
 
@@ -145,6 +164,21 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
     // have an existing flow
     //
     auto &f = *flowItr;
+
+    //
+    // check flow interval time
+    //
+    u_long flow_time = (curr_time - f.startTime.tv_sec);
+    /*DEBUG*/fprintf(stdout, "current flow time = %lu\n", flow_time);
+    if (flow_time >= timeout_interval) {
+      /*DEBUG*/fprintf(stdout, "end flow\n");
+      size_t hashValue = f.hashValue();
+      finishedFlows[hashValue].push_back(f);
+      /*DEBUG*/fprintf(stdout, "before erase %lu\n", flows.size());
+      flows.erase(flowItr);
+      /*DEBUG*/fprintf(stdout, "after  erase %lu\n", flows.size());
+      return;
+    }
 
     //
     // increment packet counter
@@ -376,16 +410,17 @@ int main(int argc, char* argv[])
 
   }
 
-  printHeader();
-  if (num == 0) {
-    for (auto &flow : flows) {
-      flow.print();
-    }
-  } else {
-    for (int i = 0; i < num; ++i) {
-      flows[i].print();
-    }
-  }
+  cleanupAndPrint();
+  //printHeader();
+  //if (num == 0) {
+  //  for (auto &flow : flows) {
+  //    flow.print();
+  //  }
+  //} else {
+  //  for (int i = 0; i < num; ++i) {
+  //    flows[i].print();
+  //  }
+  //}
 
 
   return 0;

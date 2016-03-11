@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <functional>
 
 /* default snap length (maximum bytes per packet to capture) */
 #define SNAP_LEN 1518
@@ -159,6 +160,16 @@ public:
       str += " ";
     }
     return str;
+  }
+
+  size_t hashValue() {
+    std::hash<std::string> hash_fn;
+    std::hash<int> hash_fn2;
+    size_t sa = hash_fn(srcAddr);
+    size_t da = hash_fn(dstAddr);
+    size_t sp = hash_fn2(srcPort);
+    size_t dp = hash_fn2(dstPort);
+    return (sa+da+sp+dp);
   }
 };
   
