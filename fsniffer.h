@@ -139,19 +139,43 @@ public:
     nowtm = localtime(&t);
     strftime(buf, sizeof(buf), "%H:%M:%S", nowtm);
     std::string humanTime(buf);
-    humanTime += "." + std::to_string(startTime.tv_usec);
+    //humanTime += "." + std::to_string(startTime.tv_usec);
+    std::stringstream ss;
+    ss << startTime.tv_usec;
+    humanTime += "." + ss.str();
     
-    //std::cout << startTime.tv_sec << "." << startTime.tv_usec << " "
     std::cout << padString(humanTime, 16)
     << padString(protocol, 6)
-    << padString(srcAddr, 16)
-    << padString(std::to_string(srcPort), 6)
-    << padString(dir, 4)
-    << padString(dstAddr, 16)
-    << padString(std::to_string(dstPort), 6)
-    << padString(std::to_string(totalPkts), 10)
-    << padString(std::to_string(totalBytes), 10)
-    << padString(state, 10)
+    << padString(srcAddr, 16);
+
+    //<< padString(std::to_string(srcPort), 6)
+    ss.str("");
+    ss.clear();
+    ss << srcPort;
+    std::cout << padString(ss.str(), 6);
+
+    std::cout << padString(dir, 4)
+    << padString(dstAddr, 16);
+
+    //<< padString(std::to_string(dstPort), 6)
+    ss.str("");
+    ss.clear();
+    ss << dstPort;
+    std::cout << padString(ss.str(), 6);
+
+    //std::cout << padString(std::to_string(totalPkts), 10);
+    ss.str("");
+    ss.clear();
+    ss << totalPkts;
+    std::cout << padString(ss.str(), 10);
+
+    //std::cout << padString(std::to_string(totalBytes), 10);
+    ss.str("");
+    ss.clear();
+    ss << totalBytes;
+
+    std::cout << padString(ss.str(), 10);
+    std::cout << padString(state, 10)
     << dur.tv_sec << "." << dur.tv_usec << std::endl;
   }
   std::string padString(std::string input, int size) {

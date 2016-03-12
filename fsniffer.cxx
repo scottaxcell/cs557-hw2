@@ -2,6 +2,7 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <sstream>
 #include "fsniffer.h"
 
 static std::map<size_t, std::vector<Flow>> finishedFlows;
@@ -250,7 +251,10 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
     //
     if (f.protocol == "ICMP") {
       icmp = (struct icmp*)(packet + SIZE_ETHERNET + size_ip);
-      f.state = std::to_string(icmp->icmp_type);
+      //f.state = std::to_string(icmp->icmp_type);
+      std::stringstream ss;
+      ss << icmp->icmp_type;
+      f.state = ss.str();
     } else if (f.protocol == "UDP") {
       // leave blank intentionally
     } else if (f.protocol == "TCP") {
@@ -335,7 +339,10 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
     //
     if (flow.protocol == "ICMP") {
       icmp = (struct icmp*)(packet + SIZE_ETHERNET + size_ip);
-      flow.state = std::to_string(icmp->icmp_type);
+      //flow.state = std::to_string(icmp->icmp_type);
+      std::stringstream ss;
+      ss << icmp->icmp_type;
+      flow.state = ss.str();
     }
     else if (flow.protocol == "UDP") {
       flow.state = "";
@@ -384,13 +391,17 @@ int main(int argc, char* argv[])
       interface = argv[++i];
     } else if (strcmp(argv[i], "-t") == 0) {
       user_specified_time = 1;
-      runtime = std::stoi(argv[++i]);
+      //runtime = std::stoi(argv[++i]);
+      runtime = atol(argv[++i]);
     } else if (strcmp(argv[i], "-o") == 0) {
-      time_offset = std::stoi(argv[++i]);
+      //time_offset = std::stoi(argv[++i]);
+      time_offset = atol(argv[++i]);
     } else if (strcmp(argv[i], "-N") == 0) {
-      num = std::stoi(argv[++i]);
+      //num = std::stoi(argv[++i]);
+      num = atol(argv[++i]);
     } else if (strcmp(argv[i], "-S") == 0) {
-      timeout_interval = std::stoi(argv[++i]);
+      //timeout_interval = std::stoi(argv[++i]);
+      timeout_interval = atol(argv[++i]);
     } else {
       usage();
     }
