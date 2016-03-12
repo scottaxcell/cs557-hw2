@@ -437,6 +437,8 @@ int main(int argc, char* argv[])
     pcap_close(pcap);
   
   } else if (interface.size()) {
+    // ignore time_offset in interface mode
+    time_offset = 0;
     pcap_t *pcap = pcap_open_live(interface.c_str(), SNAP_LEN, /*promiscuous mode*/1, 1000, errbuf);
 
     /* compile the filter expression */
