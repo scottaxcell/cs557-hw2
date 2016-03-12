@@ -2,7 +2,6 @@
 #include <vector>
 #include <map>
 #include <algorithm>
-
 #include "fsniffer.h"
 
 static std::map<size_t, std::vector<Flow>> finishedFlows;
@@ -111,9 +110,9 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
     else
       start_time = first_timestamp;
     max_runtime = start_time + runtime;
-    /*DEBUG*/fprintf(stdout, "Initialized first_timestamp =  %lu\n", first_timestamp);
-    /*DEBUG*/fprintf(stdout, "Initialized max_runtime =      %lu\n", max_runtime);
-    /*DEBUG*/fprintf(stdout, "Initialized start_time =       %lu\n", start_time);
+    ///*DEBUG*/fprintf(stdout, "Initialized first_timestamp =  %lu\n", first_timestamp);
+    ///*DEBUG*/fprintf(stdout, "Initialized max_runtime =      %lu\n", max_runtime);
+    ///*DEBUG*/fprintf(stdout, "Initialized start_time =       %lu\n", start_time);
   }
 
   // Check we're doing ok on time
@@ -185,14 +184,12 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
     // check flow interval time
     //
     u_long flow_time = (curr_time - f.startTime.tv_sec);
-    /*DEBUG*/fprintf(stdout, "current flow time = %lu\n", flow_time);
+    ///*DEBUG*/fprintf(stdout, "current flow time = %lu\n", flow_time);
     if (flow_time >= timeout_interval) {
-      /*DEBUG*/fprintf(stdout, "end flow\n");
+      ///*DEBUG*/fprintf(stdout, "end flow\n");
       size_t hashValue = f.hashValue();
       finishedFlows[hashValue].push_back(f);
-      /*DEBUG*/fprintf(stdout, "before erase %lu\n", flows.size());
       flows.erase(flowItr);
-      /*DEBUG*/fprintf(stdout, "after  erase %lu\n", flows.size());
       return;
     }
 
@@ -209,7 +206,6 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
     //
     // udpate duration
     //
-    // TODO verify this is working, seems off
     struct timeval currentTimestamp;
     currentTimestamp.tv_sec = pkthdr->ts.tv_sec;
     currentTimestamp.tv_usec = pkthdr->ts.tv_usec;
@@ -228,7 +224,9 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
       if (size_payload > 0) {
         if (f.dir == "<-")
           f.dir = "<->";
-        else if (flow.dir == "")
+        else if (f.dir == "->")
+          f.dir = "<->";
+        else if (f.dir == "")
           f.dir = "->";
       } else if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
         if (flags & TH_SYN) {
@@ -242,6 +240,8 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
           else if (f.dir == "")
             f.dir = "<-";
         }
+        if (f.isOppositeDirection(flow))
+          f.dir = "<->";
       }
     }
 
@@ -308,7 +308,7 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
       int size_payload = ntohs(ip->ip_len) - (size_ip + size_tcp);
       if (size_payload > 0)
         flow.dir = "->";
-      else if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
+      if ((flags = tcp->th_flags) & (TH_URG|TH_ACK|TH_SYN|TH_FIN|TH_RST|TH_PUSH)) {
         if (flags & TH_FIN)
           flow.dir = "<-";
         else if (flags & TH_SYN)
@@ -426,7 +426,27 @@ int main(int argc, char* argv[])
     pcap_close(pcap);
   
   } else if (interface.size()) {
+    pcap_t *pcap = pcap_open_live(interface.c_str(), SNAP_LEN, /*promiscuous mode*/1, 1000, errbuf);
 
+    /* compile the filter expression */
+    if (pcap_compile(pcap, &fp, filter_exp, 0, net) == -1) {
+      fprintf(stderr, "Couldn't parse filter %s: %s\n",
+          filter_exp, pcap_geterr(pcap));
+      exit(EXIT_FAILURE);
+    }
+
+    /* apply the compiled filter */
+    if (pcap_setfilter(pcap, &fp) == -1) {
+      fprintf(stderr, "Couldn't install filter %s: %s\n",
+          filter_exp, pcap_geterr(pcap));
+      exit(EXIT_FAILURE);
+    }
+
+    pcap_loop(pcap, /*all packets*/-1, handlePacket, NULL);
+
+    /* cleanup */
+    pcap_freecode(&fp);
+    pcap_close(pcap);
   }
 
   cleanupAndPrint();
