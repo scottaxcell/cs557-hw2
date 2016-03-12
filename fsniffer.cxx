@@ -253,7 +253,7 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
       icmp = (struct icmp*)(packet + SIZE_ETHERNET + size_ip);
       //f.state = std::to_string(icmp->icmp_type);
       std::stringstream ss;
-      ss << icmp->icmp_type;
+      ss << (int)icmp->icmp_type;
       f.state = ss.str();
     } else if (f.protocol == "UDP") {
       // leave blank intentionally
@@ -341,7 +341,7 @@ void handlePacket(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_cha
       icmp = (struct icmp*)(packet + SIZE_ETHERNET + size_ip);
       //flow.state = std::to_string(icmp->icmp_type);
       std::stringstream ss;
-      ss << icmp->icmp_type;
+      ss << (int)icmp->icmp_type;
       flow.state = ss.str();
     }
     else if (flow.protocol == "UDP") {

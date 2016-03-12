@@ -9,6 +9,12 @@ Usage:
 ======
 $ ./fsniffer [-r filename] [-i interface] [-t time] [-o time_offset] [-N num] [-S secs]
 
+==========================
+Building on DETER machines
+==========================
+To build on DETER machines g++48 needs to be used instead of the regular g++ command.
+Running 'make deter' instead of 'make all' on a DETER machine will fix this issue.
+
 
 ======================================
 Generate same output using argus tool:

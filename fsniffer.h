@@ -141,7 +141,7 @@ public:
     std::string humanTime(buf);
     //humanTime += "." + std::to_string(startTime.tv_usec);
     std::stringstream ss;
-    ss << startTime.tv_usec;
+    ss << (unsigned long)startTime.tv_usec;
     humanTime += "." + ss.str();
     
     std::cout << padString(humanTime, 16)
@@ -151,7 +151,7 @@ public:
     //<< padString(std::to_string(srcPort), 6)
     ss.str("");
     ss.clear();
-    ss << srcPort;
+    ss << (unsigned int)srcPort;
     std::cout << padString(ss.str(), 6);
 
     std::cout << padString(dir, 4)
@@ -160,19 +160,19 @@ public:
     //<< padString(std::to_string(dstPort), 6)
     ss.str("");
     ss.clear();
-    ss << dstPort;
+    ss << (unsigned int)dstPort;
     std::cout << padString(ss.str(), 6);
 
     //std::cout << padString(std::to_string(totalPkts), 10);
     ss.str("");
     ss.clear();
-    ss << totalPkts;
+    ss << (unsigned int)totalPkts;
     std::cout << padString(ss.str(), 10);
 
     //std::cout << padString(std::to_string(totalBytes), 10);
     ss.str("");
     ss.clear();
-    ss << totalBytes;
+    ss << (unsigned int)totalBytes;
 
     std::cout << padString(ss.str(), 10);
     std::cout << padString(state, 10)
